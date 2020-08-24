@@ -4,7 +4,8 @@ After=multi-user.target
 
 [Service]
 Type=idle
-ExecStart=/usr/bin/python -u /usr/bin/upscontrol -d -O /var/log/ups.log monitor
+#ExecStart=/usr/bin/python -u /usr/bin/upscontrol -d -O /var/log/ups.log monitor
+ExecStart=/usr/bin/python -u /usr/bin/upscontrol -d monitor
 
 [Install]
 WantedBy=multi-user.target
