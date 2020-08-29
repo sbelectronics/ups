@@ -1,3 +1,13 @@
+/*
+ * Fuses
+ *   CKDIV8 = 1      (make sure unchecked) turn off the clock div
+ *   BODLEVEL2 = 1   bod at 2.7V (could be as low as 2.5V; low-voltage tiny85 recommended)
+ *   BODLEVEL1 = 0
+ *   BODLEVEL0 = 1
+ * 
+ *   HIGH=DA, LOW=E2, EXT=FF
+ */
+
 #include <Arduino.h>
 #include <TinyWireS.h>
 #include <util/crc16.h>
@@ -14,6 +24,7 @@
 
 // Note: Make sure to use a float when specifying the voltage
 #define ON_THRESH uint8_t(VCONV_DIG(11.5))
+#define POWERUP_THRESH uint8_t(VCONV_DIG(8.5))
 #define OFF_THRESH uint8_t(VCONV_DIG(8.0))
 
 #define I2C_SLAVE_ADDRESS 0x4
@@ -30,6 +41,7 @@
 #define REG_CYCLE_DELAY 11
 #define REG_FAIL_SHUTDOWN_DELAY 12
 #define REG_RUN_COUNTER 13
+#define REG_POWERUP_THRESH 14
 
 #define VAL_MOSFET i2c_regs[REG_MOSFET]
 #define VAL_VIN_HIGH i2c_regs[REG_VIN_HIGH]
@@ -41,13 +53,14 @@
 #define VAL_CYCLE_DELAY i2c_regs[REG_CYCLE_DELAY]
 #define VAL_FAIL_SHUTDOWN_DELAY i2c_regs[REG_FAIL_SHUTDOWN_DELAY]
 #define VAL_RUN_COUNTER i2c_regs[REG_RUN_COUNTER]
+#define VAL_POWERUP_THRESH i2c_regs[REG_POWERUP_THRESH]
 
 #define PIN_MOSFET (1<<PB1)
 
 #define STATE_DISABLED 0
 #define STATE_WAIT_OFF 1
 #define STATE_WAIT_ON 2
-#define STATE_ON 3
+#define STATE_POWERUP 3
 #define STATE_RUNNING 4
 #define STATE_FAIL_SHUTDOWN 5
 #define STATE_FAIL_SHUTDOWN_DELAY 6
@@ -72,15 +85,17 @@ volatile uint8_t i2c_regs[] =
     ON_THRESH,  // on threshold
     OFF_THRESH, // off threshold
     0x0,        // countdown in 100ms units
-    STATE_ON,   // state
+    STATE_POWERUP,   // state
     0x0,        // cycle delay
     0x0,        // fail-shutdown delay
     0x0,        // run counter
+    POWERUP_THRESH, // powerup threshold
 };
 const byte reg_size = sizeof(i2c_regs);
 
 uint8_t reg_position;
 uint8_t receive_error;
+uint8_t last_mosfet_state;
 uint8_t send_crc, next_crc;
 uint8_t sample_ptr, num_samples;
 uint8_t vin_samples[MAX_SAMPLES];
@@ -123,7 +138,26 @@ void handleRegMosfet()
 {
     if (i2c_regs[REG_MOSFET]) {
         // low will turn the mosfet on
+        //PORTB &= (~PIN_MOSFET);
+
+        // Slow-start the mosfet.
+        // Otherwise, the sudden current inrush will cause the dc/dc
+        // converter to trip into overcurrent mode and shut off.
+        uint8_t i;
+        for (i=0; i<200; i++) {
+            PORTB &= (~PIN_MOSFET);
+            delayMicroseconds(3);
+            PORTB |= (PIN_MOSFET);
+            delayMicroseconds(3);
+        }
+        for (i=0; i<200; i++) {
+            PORTB &= (~PIN_MOSFET);
+            delayMicroseconds(6);
+            PORTB |= (PIN_MOSFET);
+            delayMicroseconds(3);
+        }
         PORTB &= (~PIN_MOSFET);
+
     } else {
         // high will turn the mosfet off
         PORTB |= PIN_MOSFET;
@@ -225,7 +259,7 @@ void setup() {
     TinyWireS.onRequest(requestEvent);
     TinyWireS.onReceive(receiveEvent);
 
-    PORTB &= ~PIN_MOSFET;
+    PORTB |= PIN_MOSFET;
     DDRB |= PIN_MOSFET;
 
     sample_ptr = 0;
@@ -272,13 +306,13 @@ void loop() {
 
         case STATE_WAIT_ON:
             if (VAL_VIN_HIGH >= VAL_ON_THRESH) {
-                VAL_STATE = STATE_ON;
+                VAL_STATE = STATE_POWERUP;
             }
             break;
 
         case STATE_FAIL_SHUTDOWN:
-        case STATE_ON:
-            if ((VAL_VUPS_HIGH >= VAL_ON_THRESH) && (VAL_VIN_HIGH >= VAL_ON_THRESH)) {
+        case STATE_POWERUP:
+            if ((VAL_VIN_HIGH >= VAL_ON_THRESH) && (VAL_VUPS_HIGH >= VAL_POWERUP_THRESH)) {
                 VAL_COUNTDOWN = 0;
                 VAL_MOSFET = 1;
                 handleRegMosfet();
@@ -287,7 +321,7 @@ void loop() {
             break;
 
         case STATE_RUNNING:
-            if ((VAL_VUPS_HIGH <= VAL_OFF_THRESH) && (VAL_VIN_HIGH <= VAL_OFF_THRESH)) {
+            if ((VAL_VIN_HIGH <= VAL_OFF_THRESH) && (VAL_VUPS_HIGH <= VAL_OFF_THRESH)) {
                 VAL_MOSFET = 0;
                 handleRegMosfet();
                 VAL_FAIL_SHUTDOWN_DELAY = 10;
