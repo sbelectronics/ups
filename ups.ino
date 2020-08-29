@@ -18,14 +18,17 @@
 
 #define R1 10000
 #define R2 2200
+// Note: Make sure to use a float when specifying the voltage
+#define ON_THRESH_DESIRED 11.5
+#define POWERUP_THRESH_DESIRED 8.5
+#define OFF_THRESH_DESIRED 8.0
 
 #define VCONV(x) (x * R2 / (R1+R2))
 #define VCONV_DIG(x) VCONV(x)*256/2.56
 
-// Note: Make sure to use a float when specifying the voltage
-#define ON_THRESH uint8_t(VCONV_DIG(11.5))
-#define POWERUP_THRESH uint8_t(VCONV_DIG(8.5))
-#define OFF_THRESH uint8_t(VCONV_DIG(8.0))
+#define ON_THRESH uint8_t(VCONV_DIG(ON_THRESH_DESIRED))
+#define POWERUP_THRESH uint8_t(VCONV_DIG(POWERUP_THRESH_DESIRED))
+#define OFF_THRESH uint8_t(VCONV_DIG(OFF_THRESH_DESIRED))
 
 #define I2C_SLAVE_ADDRESS 0x4
 
@@ -42,6 +45,8 @@
 #define REG_FAIL_SHUTDOWN_DELAY 12
 #define REG_RUN_COUNTER 13
 #define REG_POWERUP_THRESH 14
+#define REG_R1 15
+#define REG_R2 16
 
 #define VAL_MOSFET i2c_regs[REG_MOSFET]
 #define VAL_VIN_HIGH i2c_regs[REG_VIN_HIGH]
@@ -90,6 +95,8 @@ volatile uint8_t i2c_regs[] =
     0x0,        // fail-shutdown delay
     0x0,        // run counter
     POWERUP_THRESH, // powerup threshold
+    REG_R1/100, // R1 resistor value
+    REG_R2/100, // R2 resistor value
 };
 const byte reg_size = sizeof(i2c_regs);
 
