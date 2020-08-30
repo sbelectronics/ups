@@ -130,6 +130,7 @@ void handleRegMosfet()
         // low will turn the mosfet on
         //PORTB &= (~PIN_MOSFET);
 
+#ifdef SLOW_START_MOSFET
         // Slow-start the mosfet.
         // Otherwise, the sudden current inrush will cause the dc/dc
         // converter to trip into overcurrent mode and shut off.
@@ -146,6 +147,7 @@ void handleRegMosfet()
             PORTB |= (PIN_MOSFET);
             delayMicroseconds(3);
         }
+#endif
         PORTB &= (~PIN_MOSFET);
 
     } else {

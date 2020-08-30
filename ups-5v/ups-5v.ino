@@ -13,12 +13,10 @@
 #include <util/crc16.h>
 
 #define R1 10000
-#define R2 2200
+#define R2 7500
 // Note: Make sure to use a float when specifying the voltage
-#define ON_THRESH_DESIRED 11.5
-#define POWERUP_THRESH_DESIRED 8.5
-#define OFF_THRESH_DESIRED 8.0
-
-#define SLOW_START_MOSFET
+#define ON_THRESH_DESIRED 4.7
+#define POWERUP_THRESH_DESIRED 4.7
+#define OFF_THRESH_DESIRED 3.5
 
 #include "../ups-common/ups.ino"
