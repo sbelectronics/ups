@@ -27,6 +27,10 @@ A Linux daemon, running on the raspberry pi, monitors the voltage by making i2c 
 
 As a final step during shutdown, Linux systemd will execute a script that will tell the microcontroller to turn off the load. At this point, the root filesystem has been remounted readonly, so the board can safely be powered off. 
 
+# smb-pi-lib
+
+I have a second repository that has common code for a number of my projects, including the ups. It's located at [https://github.com/sbelectronics/smb-pi-lib](https://github.com/sbelectronics/smb-pi-lib)
+
 # Acknowledgements
 
 * David Gesswein's MFM Emulator was the inspiration for the supercapacitor charing circuit.
