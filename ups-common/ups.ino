@@ -12,6 +12,7 @@
 #define ON_THRESH uint8_t(VCONV_DIG(ON_THRESH_DESIRED))
 #define POWERUP_THRESH uint8_t(VCONV_DIG(POWERUP_THRESH_DESIRED))
 #define OFF_THRESH uint8_t(VCONV_DIG(OFF_THRESH_DESIRED))
+#define SHUTDOWN_THRESH uint8_t(VCONV_DIG(SHUTDOWN_THRESH_DESIRED))
 
 #define I2C_SLAVE_ADDRESS 0x4
 
@@ -28,8 +29,9 @@
 #define REG_FAIL_SHUTDOWN_DELAY 12
 #define REG_RUN_COUNTER 13
 #define REG_POWERUP_THRESH 14
-#define REG_R1 15
-#define REG_R2 16
+#define REG_SHUTDOWN_THRESH 15
+#define REG_R1 16
+#define REG_R2 17
 
 #define VAL_MOSFET i2c_regs[REG_MOSFET]
 #define VAL_VIN_HIGH i2c_regs[REG_VIN_HIGH]
@@ -78,8 +80,9 @@ volatile uint8_t i2c_regs[] =
     0x0,        // fail-shutdown delay
     0x0,        // run counter
     POWERUP_THRESH, // powerup threshold
-    REG_R1/100, // R1 resistor value
-    REG_R2/100, // R2 resistor value
+    SHUTDOWN_THRESH, // software shutdown threshold
+    R1/100,     // R1 resistor value
+    R2/100,     // R2 resistor value
 };
 const byte reg_size = sizeof(i2c_regs);
 
@@ -124,11 +127,32 @@ uint8_t computeAverage(uint8_t *samples)
     return accum/num_samples;
 }
 
+inline void mosfetOff()
+{
+#ifdef DCDC_INSTEAD_OF_MOSFET
+    // to turn the DCDC off, pull down the enable
+    PORTB &= (~PIN_MOSFET);
+    DDRB |= PIN_MOSFET;
+#else
+    PORTB |= PIN_MOSFET;
+#endif
+}
+
+inline void mosfetOn()
+{
+#ifdef DCDC_INSTEAD_OF_MOSFET
+    // to turn the DCDC off, float the enable
+    DDRB &= (~PIN_MOSFET);
+#else
+    PORTB &= (~PIN_MOSFET);
+#endif
+}
+
 void handleRegMosfet()
 {
     if (i2c_regs[REG_MOSFET]) {
         // low will turn the mosfet on
-        //PORTB &= (~PIN_MOSFET);
+        // mosfetOn()
 
 #ifdef SLOW_START_MOSFET
         // Slow-start the mosfet.
@@ -136,23 +160,22 @@ void handleRegMosfet()
         // converter to trip into overcurrent mode and shut off.
         uint8_t i;
         for (i=0; i<200; i++) {
-            PORTB &= (~PIN_MOSFET);
+            mosfetOn();
             delayMicroseconds(3);
-            PORTB |= (PIN_MOSFET);
+            mosfetOff();
             delayMicroseconds(3);
         }
         for (i=0; i<200; i++) {
-            PORTB &= (~PIN_MOSFET);
+            mosfetOn();
             delayMicroseconds(6);
-            PORTB |= (PIN_MOSFET);
+            mosfetOff();
             delayMicroseconds(3);
         }
 #endif
-        PORTB &= (~PIN_MOSFET);
-
+        mosfetOn();
     } else {
         // high will turn the mosfet off
-        PORTB |= PIN_MOSFET;
+        mosfetOff();
     }
 }
 
@@ -251,8 +274,11 @@ void setup() {
     TinyWireS.onRequest(requestEvent);
     TinyWireS.onReceive(receiveEvent);
 
-    PORTB |= PIN_MOSFET;
+    mosfetOff();
+#ifndef DCDC_INSTEAD_OF_MOSFET
+    // when using the mosfet, pin direction is always output
     DDRB |= PIN_MOSFET;
+#endif
 
     sample_ptr = 0;
     num_samples = 0;

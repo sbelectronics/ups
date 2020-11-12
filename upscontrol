@@ -25,7 +25,7 @@ def parse_args():
             "outputFile": None,
             "outputAppend": False,
             "shutdownCommand": "/sbin/shutdown -h now",
-            "threshold": 9.0,
+            "threshold": None,
             "daemon": False}
 
     _help = 'Delay in seconds (default: %s)' % defs['time']
@@ -70,7 +70,7 @@ def parse_args():
         default=defs['shutdownCommand'],
         help=_help)
 
-    _help = 'Threshold on VIN to begin shutdown (default: %0.2f)' % defs['threshold']
+    _help = 'Threshold on VIN to begin shutdown (Default: use uController setting)'
     parser.add_argument(
         '-T', '--threshold', dest='threshold', action='store', type=float,
         default=defs['threshold'],
@@ -106,6 +106,10 @@ def show(ups):
     print "09 Countdown: %0.2d" % ups.readCountdown()
     print "0A State: %s" % ups.readStateStr()
     print "0D RunCounter: %d" % ups.readRunCounter()
+    print "0E PowerUpThresh %0.2f" % ups.readPowerUpThresh()
+    print "0F ShutdownThresh: %0.2f" % ups.readShutdownThresh()
+    print "10 R1: %d" % (ups.readR1() * 100)
+    print "11 R2: %d" % (ups.readR2() * 100)
 
 
 def showErrors(ups):
@@ -185,7 +189,11 @@ def  execute(args):
     elif args.cmd == "show":
         show(ups)
     elif args.cmd == "monitor":
-        monitor(ups, args.shutdownCommand, args.threshold)
+        if args.threshold is None:
+            threshold = ups.readShutdownThresh()
+        else:
+            threshold = args.threshold
+        monitor(ups, args.shutdownCommand, threshold)
     else:
         raise Exception("Unknown command %s" % args.cmd)
 
